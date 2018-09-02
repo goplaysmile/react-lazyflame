@@ -2,7 +2,7 @@
   "name": "react-lazyflame",
   "version": "1.0.0",
   "description": "💤Lazy 🔥Firebase Realtime ⚛️React Components",
-  "main": "LazyFlame.js",
+  "main": "src/LazyFlame.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
