@@ -2,7 +2,11 @@ import { Component, createContext, createElement } from 'react'
 import firebase from 'firebase/app'
 import 'firebase/database'
 
+let fb
+let log = _ => {}
 const { Provider, Consumer } = createContext()
+
+const isTemplate = path => typeof path === 'string' && path.indexOf('$') !== -1
 
 export default class extends Component {
   constructor(props) {
@@ -13,31 +17,54 @@ export default class extends Component {
     this.call = {}
     this.path = {}
     this.prop = {}
-    this.log = msg => {}
     this.download = this.download.bind(this)
+
+    if (props.hasOwnProperty('debug')) {
+      log = msg => console.log(msg)
+    }
+
+    if (!fb && props.hasOwnProperty('init')) {
+      log('[LazyFlame] initializing firebase')
+      fb = firebase.initializeApp(props.init)
+    }
+
+    if (props.hasOwnProperty('uid')) {
+      log('[LazyFlame] registering auth')
+      
+      require('firebase/auth')
+      this.unregisterAuthObserver = fb.auth().onAuthStateChanged((user) => {
+        const uid = user ? user.uid : undefined
+        if (this.state.uid === uid) return
+
+        log(`[LazyFlame] auth {uid: ${uid}}`)
+        this.setState({ uid: uid })
+      })
+    }
 
     for (const prop in props) {
       switch (prop) {
       case 'children': continue
-      case 'firebase-config': firebase.initializeApp(props[prop]); continue
-      case 'DEBUG': this.log = msg => console.log(msg); continue
+      case 'debug': continue
+      case 'init': continue
       default:
       }
 
-      const [ varName ] = prop.split('-')
+      let [ varName ] = prop.split('-')
 
       this.prop[varName] = prop
       this.state[varName] = undefined
 
-      if (props[prop].indexOf('$') === -1) {
-        this.log(`[LazyFlame] ${varName}@${props[prop]}`)
-        this.ref[prop] = firebase.database().ref(props[prop])
+      const path = props[prop]
+
+      if (!isTemplate(path) && typeof path === 'string') {
+        log(`[LazyFlame] ${varName}@${path}`)
+        this.ref[prop] = fb.database().ref(path)
       } else {
         this.ref[prop] = undefined
       }
     }
 
-    this.log(`[LazyFlame] constructor`)
+    log('[LazyFlame] constructor')
 
     this.state.set = vars => {
       for (const varName in vars) {
@@ -48,7 +75,7 @@ export default class extends Component {
   }
 
   componentDidMount() {
-    this.log(`[LazyFlame] componentDidMount`)
+    log('[LazyFlame] componentDidMount')
     
     for (const prop in this.ref) {
       const [ varName, on ] = prop.split('-')
@@ -56,15 +83,22 @@ export default class extends Component {
       if (!this.ref[prop]) continue
       
       if (!on) {
-        this.ref[prop].once('value', this.download(varName))
+        this.ref[prop].once('value', this.download(varName)).catch(console.error)
       } else {
-        this.call[prop] = this.ref[prop].on('value', this.download(varName))
+        this.call[prop] = this.ref[prop].on('value', this.download(varName), e => console.error(e))
       }
     }
   }
 
   componentWillUnmount() {
-    this.log(`[LazyFlame] componentWillUnmount`)
+    log('[LazyFlame] componentWillUnmount')
+
+    if (this.unregisterAuthObserver) {
+      log('[LazyFlame] unregistering auth')
+
+      this.unregisterAuthObserver()
+      delete this.unregisterAuthObserver
+    }
 
     for (const prop in this.call) {
       this.ref[prop].off('value', this.call[prop])
@@ -74,12 +108,12 @@ export default class extends Component {
   download(prop) {
     return snapshot => {
       const val = snapshot.val()
-      this.log(`[LazyFlame] download {${prop}: ${JSON.stringify(val)}}`)
+      log(`[LazyFlame] download {${prop}: ${JSON.stringify(val)}}`)
       this.setState({[prop]: val})
     }
     // const sanitize = (prop, snapshot) => {
     //   if (!snapshot.hasChildren()) {
-    //     this.log(`[LazyFlame] download {${prop}: ${snapshot.val()}}`)
+    //     log(`[LazyFlame] download {${prop}: ${snapshot.val()}}`)
     //     return snapshot.val()
     //   }
     //   let obj = []
@@ -95,18 +129,16 @@ export default class extends Component {
   }
   
   render() {
-    this.log(`[LazyFlame] render`)
-
     for (const prop in this.ref) {
       let path = this.props[prop]
-      if (path.indexOf('$') === -1) continue
+      if (!isTemplate(path)) continue
 
       let varEx = /\$([^/.]+)/
       let match
       while (!!(match = varEx.exec(path))) {
         const varName = match[1]
         if (this.state[varName] === undefined || this.state[varName] === null) {
-          this.log(`[LazyFlame] ${varName} not downloaded; skipping render`)
+          log(`[LazyFlame] ${varName} not downloaded; skipping render`)
           return null
         }
 
@@ -114,25 +146,25 @@ export default class extends Component {
       }
 
       if (this.path[prop] === path) continue
-      this.log(`[LazyFlame] injecting ${this.props[prop]}; ${path}`)
+      log(`[LazyFlame] injecting ${this.props[prop]}; ${path}`)
       this.path[prop] = path
 
       const [ varName, on ] = prop.split('-')
 
       if (!on) {
-        this.ref[prop] = firebase.database().ref(path)
-        this.ref[prop].once('value', this.download(varName))
+        this.ref[prop] = fb.database().ref(path)
+        this.ref[prop].once('value', this.download(varName)).catch(console.error)
       } else {
         this.ref[prop].off('value', this.call[prop])
-        this.ref[prop] = firebase.database().ref(path)
-        this.call[prop] = this.ref[prop].on('value', this.download(varName))
+        this.ref[prop] = fb.database().ref(path)
+        this.call[prop] = this.ref[prop].on('value', this.download(varName), e => console.error(e))
       }
     }
     
     for (const varName in this.state) {
       if (this.state[varName] !== undefined && this.state[varName] !== null) continue
-
-      this.log(`[LazyFlame] ${varName} not downloaded; skipping render`)
+      
+      log(`[LazyFlame] ${varName} not downloaded; skipping render`)
       return null
     }
 
@@ -141,18 +173,21 @@ export default class extends Component {
 
     switch (true) {
     case notProvider && notConsumer:
+      log('[LazyFlame] render')
       return this.props.children(this.state)
 
     case notConsumer:
-      this.log(`[LazyFlame] <Provider>`)
+      log('[LazyFlame] render <Provider>')
       return createElement(Provider, {value: this.state}, this.props.children)
 
     case notProvider:
-      this.log(`[LazyFlame] <Consumer>`)
-      return createElement(Consumer, null, db => this.props.children(db))
+      return createElement(Consumer, null, db => {
+        log('[LazyFlame] render <Consumer>')
+        return this.props.children(db)
+      })
 
     default:
-      this.log(`[LazyFlame] null render`)
+      log('[LazyFlame] render null')
       return null
     }
   }
