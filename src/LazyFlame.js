@@ -1,4 +1,4 @@
-import React, { Component, createContext } from 'react'
+import { Component, createContext, createElement } from 'react'
 import firebase from 'firebase/app'
 import 'firebase/database'
 
@@ -145,11 +145,11 @@ export default class extends Component {
 
     case notConsumer:
       this.log(`[LazyFlame] <Provider>`)
-      return <Provider value={this.state}>{this.props.children}</Provider>
+      return createElement(Provider, {value: this.state}, this.props.children)
 
     case notProvider:
       this.log(`[LazyFlame] <Consumer>`)
-      return <Consumer>{db => this.props.children(db)}</Consumer>
+      return createElement(Consumer, null, db => this.props.children(db))
 
     default:
       this.log(`[LazyFlame] null render`)
