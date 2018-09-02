@@ -1,0 +1,27 @@
+{
+  "name": "react-lazyflame",
+  "version": "1.0.0",
+  "description": "💤Lazy 🔥Firebase Realtime ⚛️React Components",
+  "main": "LazyFlame.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goplaysmile/react-lazyflame.git"
+  },
+  "keywords": [
+    "react",
+    "firebase",
+    "realtime",
+    "database",
+    "component",
+    "lazy"
+  ],
+  "author": "mrmiguu",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/goplaysmile/react-lazyflame/issues"
+  },
+  "homepage": "https://github.com/goplaysmile/react-lazyflame#readme"
+}
