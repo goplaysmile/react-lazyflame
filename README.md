@@ -47,7 +47,8 @@ const External = () => (
 
 export default () => (
   <div className="App">
-    <LazyFlame firebase-config={config} DEBUG
+    <LazyFlame init={config} debug
+      uid
       year="some/year"
       names="born/$year"
     >
@@ -57,4 +58,4 @@ export default () => (
 )
 ```
 
-The example above initializes Firebase with **firebase-config**, prints console.log messages with **DEBUG**, and uses React's Context.Provider/Consumer to teleport downloaded values to other components that use **\<LazyFlame\>**. On every button click, **year** -> 'some/year' in the realtime database increases by one. Notice **year** doesn't have the '-on' appended to the prop name; it will only download once but internally keep track of the uploaded/set value which also will retrigger a download from 'born/$year' -> **names** each time.
+The example above initializes Firebase with **init**, prints console.log messages with **debug**, awaits authentication -> **uid**, and uses React's Context.Provider/Consumer to teleport downloaded values to other components that use **\<LazyFlame\>**. On every button click, **year** -> 'some/year' in the realtime database increases by one. Notice **year** doesn't have the '-on' appended to the prop name; it will only download once but internally keep track of the uploaded/set value which also will retrigger a download from 'born/$year' -> **names** each time.
