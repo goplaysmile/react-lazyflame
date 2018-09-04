@@ -2,7 +2,7 @@ import { Component, createContext, createElement } from 'react'
 import firebase from 'firebase/app'
 import 'firebase/database'
 
-let fb
+let fb = firebase
 let log = _ => {}
 const { Provider, Consumer } = createContext()
 
@@ -18,12 +18,13 @@ export default class extends Component {
     this.path = {}
     this.prop = {}
     this.download = this.download.bind(this)
+    this.inject = this.inject.bind(this)
 
     if (props.hasOwnProperty('debug')) {
       log = msg => console.log(msg)
     }
 
-    if (!fb && props.hasOwnProperty('init')) {
+    if (fb === firebase && props.hasOwnProperty('init')) {
       log('[LazyFlame] initializing firebase')
       fb = firebase.initializeApp(props.init)
     }
@@ -64,14 +65,16 @@ export default class extends Component {
       }
     }
 
-    log('[LazyFlame] constructor')
-
     this.state.set = vars => {
       for (const varName in vars) {
-        this.ref[this.prop[varName]].set(vars[varName])
-        this.setState({[varName]: vars[varName]})
+        this.ref[this.prop[varName]].set(vars[varName]).then(() => {
+          log(`[LazyFlame] upload {${varName}: ${vars[varName]}}`)
+          this.setState({[varName]: vars[varName]})
+        })
       }
     }
+
+    log('[LazyFlame] constructed')
   }
 
   componentDidMount() {
@@ -127,22 +130,39 @@ export default class extends Component {
     //   this.setState({[prop]: sanitize(prop, snapshot)})
     // }
   }
+
+  inject(path) {
+    let varEx = /\$([^/]+)/
+    let match
+
+    while (!!(match = varEx.exec(path))) {
+      const [ varName, ...children ] = match[1].split('.')
+
+      if (this.state[varName] === undefined || this.state[varName] === null) {
+        return
+      }
+
+      let val = this.state[varName]
+      if (children) {
+        for (const child of children) {
+          val = val[child]
+        }
+      }
+      path = path.replace(match[0], val)
+    }
+
+    return path
+  }
   
   render() {
     for (const prop in this.ref) {
       let path = this.props[prop]
       if (!isTemplate(path)) continue
 
-      let varEx = /\$([^/.]+)/
-      let match
-      while (!!(match = varEx.exec(path))) {
-        const varName = match[1]
-        if (this.state[varName] === undefined || this.state[varName] === null) {
-          log(`[LazyFlame] ${varName} not downloaded; skipping render`)
-          return null
-        }
-
-        path = path.replace(match[0], this.state[varName])
+      path = inject(path)
+      if (!path) {
+        console.log(`[LazyFlame] ${varName} not downloaded; skipping render`)
+        return null
       }
 
       if (this.path[prop] === path) continue
