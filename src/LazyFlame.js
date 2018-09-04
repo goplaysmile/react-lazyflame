@@ -124,6 +124,7 @@ export default class extends Component {
       const [ varName, ...children ] = match[1].split('.')
 
       if (this.state[varName] === undefined || this.state[varName] === null) {
+        console.log(`[LazyFlame] ${varName} not downloaded; skipping inject`)
         return
       }
 
@@ -146,7 +147,7 @@ export default class extends Component {
 
       path = this.inject(path)
       if (!path) {
-        console.log(`[LazyFlame] ${varName} not downloaded; skipping render`)
+        log(`[LazyFlame] failed to inject ${this.props[prop]}; skipping render`)
         return null
       }
 
