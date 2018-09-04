@@ -114,21 +114,6 @@ export default class extends Component {
       log(`[LazyFlame] download {${prop}: ${JSON.stringify(val)}}`)
       this.setState({[prop]: val})
     }
-    // const sanitize = (prop, snapshot) => {
-    //   if (!snapshot.hasChildren()) {
-    //     log(`[LazyFlame] download {${prop}: ${snapshot.val()}}`)
-    //     return snapshot.val()
-    //   }
-    //   let obj = []
-    //   snapshot.forEach(snapshot => {
-    //     obj[snapshot.key] = sanitize(`${prop}.${snapshot.key}`, snapshot)
-    //   })
-    //   return obj
-    // }
-    
-    // return snapshot => {
-    //   this.setState({[prop]: sanitize(prop, snapshot)})
-    // }
   }
 
   inject(path) {
@@ -159,7 +144,7 @@ export default class extends Component {
       let path = this.props[prop]
       if (!isTemplate(path)) continue
 
-      path = inject(path)
+      path = this.inject(path)
       if (!path) {
         console.log(`[LazyFlame] ${varName} not downloaded; skipping render`)
         return null
