@@ -67,7 +67,7 @@ export default class extends Component {
 
     this.state.set = vars => {
       for (const varName in vars) {
-        const val = val
+        const val = vars[varName]
         this.ref[this.prop[varName]].set(val).then(() => {
           log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val)}}`)
           this.setState({[varName]: val})
