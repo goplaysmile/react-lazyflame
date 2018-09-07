@@ -14,11 +14,12 @@ export default class extends Component {
 
     this.state = {}
     this.ref = {}
+    this.tmpl = {}
     this.call = {}
-    this.path = {}
     this.prop = {}
     this.download = this.download.bind(this)
     this.inject = this.inject.bind(this)
+    this.eject = this.eject.bind(this)
 
     if (props.hasOwnProperty('debug')) {
       log = msg => console.log(msg)
@@ -56,22 +57,24 @@ export default class extends Component {
       this.state[varName] = undefined
 
       const path = props[prop]
+      const isTmpl = isTemplate(path)
 
-      if (!isTemplate(path) && typeof path === 'string') {
+      if (!isTmpl && typeof path === 'string') {
         log(`[LazyFlame] ${varName}@${path}`)
         this.ref[prop] = fb.database().ref(path)
-      } else {
-        this.ref[prop] = undefined
+      } else if (isTmpl) {
+        this.tmpl[prop] = {}
       }
     }
 
     this.state.set = vars => {
       for (const varName in vars) {
         const val = vars[varName]
-        this.ref[this.prop[varName]].set(val).then(() => {
-          log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val)}}`)
-          this.setState({[varName]: val})
-        })
+
+        this.ref[this.prop[varName]].set(val)
+        log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val)}}`)
+        
+        this.setState({[varName]: val})
       }
     }
 
@@ -81,15 +84,16 @@ export default class extends Component {
   componentDidMount() {
     log('[LazyFlame] componentDidMount')
     
-    for (const prop in this.ref) {
+    for (const full in this.ref) {
+      const [ prop ] = full.split('@')
       const [ varName, on ] = prop.split('-')
 
-      if (!this.ref[prop]) continue
+      if (!this.ref[full]) continue
       
       if (!on) {
-        this.ref[prop].once('value', this.download(varName)).catch(console.error)
+        this.ref[full].once('value', this.download(varName)).catch(console.error)
       } else {
-        this.call[prop] = this.ref[prop].on('value', this.download(varName), e => console.error(e))
+        this.call[full] = this.ref[full].on('value', this.download(varName), e => console.error(e))
       }
     }
   }
@@ -105,6 +109,7 @@ export default class extends Component {
     }
 
     for (const prop in this.call) {
+      log(`[LazyFlame] off {${prop}}`)
       this.ref[prop].off('value', this.call[prop])
     }
   }
@@ -118,56 +123,124 @@ export default class extends Component {
   }
 
   inject(path) {
+    let paths = {[path]: true}
     let varEx = /\$([^/]+)/
     let match
-
+  
     while (!!(match = varEx.exec(path))) {
-      const [ varName, ...children ] = match[1].split('.')
-
+      let [ varName, ...children ] = match[1].split('.')
+  
       if (this.state[varName] === undefined || this.state[varName] === null) {
-        console.log(`[LazyFlame] ${varName} not downloaded; skipping inject`)
+        log(`[LazyFlame] ${varName} not downloaded; skipping inject`)
         return
       }
-
-      let val = this.state[varName]
+  
+      let obj = this.state[varName]
       if (children) {
-        for (const child of children) {
-          val = val[child]
+        for (let child of children) {
+          obj = obj[child]
         }
       }
-      path = path.replace(match[0], val)
+  
+      if (typeof obj !== 'object') {
+        obj = {[ obj ]: true}
+      }
+  
+      let paths2 = {}
+      for (let key in obj) {
+        for (path in paths) {
+          paths2[path.replace(match[0], key)] = true
+        }
+      }
+      paths = paths2
     }
+  
+    return paths
+  }
 
-    return path
+  eject(tmpl, impl) {
+    const tms = tmpl.split('/')
+    const ims = impl.split('/')
+    let vars = []
+    for (const i in tms) {
+        if (tms[i].indexOf('$') !== -1) vars.push(ims[i])
+    }
+    return vars
   }
   
   render() {
-    for (const prop in this.ref) {
-      let path = this.props[prop]
-      if (!isTemplate(path)) continue
+    // templates
+    for (const prop in this.tmpl) {
+      const tmpl = this.props[prop]
+      const newPaths = this.inject(tmpl)
 
-      path = this.inject(path)
-      if (!path) {
-        log(`[LazyFlame] failed to inject ${this.props[prop]}; skipping render`)
+      if (!newPaths) {
+        log(`[LazyFlame] failed to inject ${tmpl}; skipping render`)
         return null
       }
 
-      if (this.path[prop] === path) continue
-      log(`[LazyFlame] injecting ${this.props[prop]}; ${path}`)
-      this.path[prop] = path
+      // clean up
+      for (const old in this.tmpl[prop]) {
+        if (newPaths[old]) continue
+        
+        const full = `${prop}@${old}`
 
-      const [ varName, on ] = prop.split('-')
+        log(`[LazyFlame] cleaning up {${full}}`)
 
-      if (!on) {
-        this.ref[prop] = fb.database().ref(path)
-        this.ref[prop].once('value', this.download(varName)).catch(console.error)
-      } else {
-        this.ref[prop].off('value', this.call[prop])
-        this.ref[prop] = fb.database().ref(path)
-        this.call[prop] = this.ref[prop].on('value', this.download(varName), e => console.error(e))
+        const [, on ] = prop.split('-')
+        if (on) {
+          this.ref[full].off('value', this.call[full])
+          delete this.call[full]
+        }
+        
+        delete this.ref[full]
+        delete this.tmpl[prop][old]
+      }
+      
+      log(`[LazyFlame] new paths ${prop}@${JSON.stringify(Object.keys(newPaths))}`)
+      
+      // add in
+      for (const path in newPaths) {
+        const full = `${prop}@${path}`
+        
+        if (this.tmpl[prop][path]) continue
+        
+        log(`[LazyFlame] injecting ${this.props[prop]}; ${path}`)
+        this.tmpl[prop][path] = true
+
+        const [ varName, on ] = prop.split('-')
+
+        const download = snapshot => {
+          const val = snapshot.val()
+          
+          this.setState(state => {
+            const og = state[varName] !== undefined ? state[varName] : {}
+            let ptr = og
+            
+            const vars = this.eject(tmpl, path)
+            for (const i in vars) {
+              const v = vars[i]
+              if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
+              if (i+1 < vars.length) ptr = ptr[v]
+              else ptr[v] = val
+            }
+            
+            log(`[LazyFlame] download (recursive) {${varName}: ${JSON.stringify(og)}}`)
+            return {[varName]: og}
+          })
+        }
+
+        if (!on) {
+          this.ref[full] = fb.database().ref(path)
+          this.ref[full].once('value', download).catch(console.error)
+        } else {
+          this.ref[full] = fb.database().ref(path)
+          this.call[full] = this.ref[full].on('value', download, e => console.error(e))
+        }
       }
     }
     
+    // ready vars
     for (const varName in this.state) {
       if (this.state[varName] !== undefined && this.state[varName] !== null) continue
       
