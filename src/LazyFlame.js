@@ -72,7 +72,7 @@ export default class extends Component {
         const val = vars[varName]
 
         this.ref[this.prop[varName]].set(val)
-        log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val)}}`)
+        log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val, null, 2)}}`)
         
         this.setState({[varName]: val})
       }
@@ -114,11 +114,36 @@ export default class extends Component {
     }
   }
 
-  download(prop) {
+  download(varName, tmpl, impl) {
     return snapshot => {
       const val = snapshot.val()
-      log(`[LazyFlame] download {${prop}: ${JSON.stringify(val)}}`)
-      this.setState({[prop]: val})
+      
+      if (!tmpl && !impl) {
+        log(`[LazyFlame] download ${JSON.stringify({[varName]: val}, null, 2)}`)
+        this.setState({[varName]: val})
+        return
+      }
+
+      this.setState(state => {
+        const og = state[varName] !== undefined ? state[varName] : {}
+        let ptr = og
+
+        log(`[LazyFlame] typeof ${varName} is ${typeof val}`)
+        if (typeof val !== 'object') {
+          return {[varName]: val}
+        }
+        
+        const vars = this.eject(tmpl, impl)
+        for (const i in vars) {
+          const v = vars[i]
+          if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
+          if (i+1 < vars.length) ptr = ptr[v]
+          else ptr[v] = val
+        }
+        
+        log(`[LazyFlame] download (recursive) ${JSON.stringify({[varName]: og}, null, 2)}`)
+        return {[varName]: og}
+      })
     }
   }
 
@@ -197,7 +222,7 @@ export default class extends Component {
         delete this.tmpl[prop][old]
       }
       
-      log(`[LazyFlame] new paths ${prop}@${JSON.stringify(Object.keys(newPaths))}`)
+      log(`[LazyFlame] new paths ${prop}@${JSON.stringify(Object.keys(newPaths), null, 2)}`)
       
       // add in
       for (const path in newPaths) {
@@ -210,32 +235,12 @@ export default class extends Component {
 
         const [ varName, on ] = prop.split('-')
 
-        const download = snapshot => {
-          const val = snapshot.val()
-          
-          this.setState(state => {
-            const og = state[varName] !== undefined ? state[varName] : {}
-            let ptr = og
-            
-            const vars = this.eject(tmpl, path)
-            for (const i in vars) {
-              const v = vars[i]
-              if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
-              if (i+1 < vars.length) ptr = ptr[v]
-              else ptr[v] = val
-            }
-            
-            log(`[LazyFlame] download (recursive) {${varName}: ${JSON.stringify(og)}}`)
-            return {[varName]: og}
-          })
-        }
-
         if (!on) {
           this.ref[full] = fb.database().ref(path)
-          this.ref[full].once('value', download).catch(console.error)
+          this.ref[full].once('value', this.download(varName, tmpl, path)).catch(console.error)
         } else {
           this.ref[full] = fb.database().ref(path)
-          this.call[full] = this.ref[full].on('value', download, e => console.error(e))
+          this.call[full] = this.ref[full].on('value', this.download(varName, tmpl, path), e => console.error(e))
         }
       }
     }
