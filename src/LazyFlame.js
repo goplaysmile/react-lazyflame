@@ -20,6 +20,7 @@ export default class extends Component {
     this.download = this.download.bind(this)
     this.inject = this.inject.bind(this)
     this.eject = this.eject.bind(this)
+    this.tmplToVal = this.tmplToVal.bind(this)
 
     if (props.hasOwnProperty('debug')) {
       log = msg => console.log(msg)
@@ -114,39 +115,6 @@ export default class extends Component {
     }
   }
 
-  download(varName, tmpl, impl) {
-    return snapshot => {
-      const val = snapshot.val()
-      
-      if (!tmpl && !impl) {
-        log(`[LazyFlame] download ${JSON.stringify({[varName]: val}, null, 2)}`)
-        this.setState({[varName]: val})
-        return
-      }
-
-      this.setState(state => {
-        const og = state[varName] !== undefined ? state[varName] : {}
-        let ptr = og
-
-        log(`[LazyFlame] typeof ${varName} is ${typeof val}`)
-        if (typeof val !== 'object') {
-          return {[varName]: val}
-        }
-        
-        const vars = this.eject(tmpl, impl)
-        for (const i in vars) {
-          const v = vars[i]
-          if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
-          if (i+1 < vars.length) ptr = ptr[v]
-          else ptr[v] = val
-        }
-        
-        log(`[LazyFlame] download (recursive) ${JSON.stringify({[varName]: og}, null, 2)}`)
-        return {[varName]: og}
-      })
-    }
-  }
-
   inject(path) {
     let paths = {[path]: true}
     let varEx = /\$([^/]+)/
@@ -183,14 +151,68 @@ export default class extends Component {
     return paths
   }
 
+  tmplToVal(tmplVar) {
+    if (!/^\$[a-z]+(\.[a-z]+)*$/i.test(tmplVar)) return
+    
+    let [ varName, ...children ] = tmplVar.substr(1).split('.')
+    
+    if (this.state[varName] === undefined || this.state[varName] === null) return
+    if (!children) return this.state[varName]
+  
+    let obj = this.state[varName]
+    for (let child of children) {
+      obj = obj[child]
+    }
+    return obj
+  }
+
   eject(tmpl, impl) {
     const tms = tmpl.split('/')
     const ims = impl.split('/')
-    let vars = []
+    let vars = {}
     for (const i in tms) {
-        if (tms[i].indexOf('$') !== -1) vars.push(ims[i])
+      if (tms[i].indexOf('$') === -1) continue
+
+      vars[tms[i]] = {
+        type: typeof this.tmplToVal(tms[i]),
+        value: ims[i]
+      }
     }
     return vars
+  }
+
+  download(varName, tmpl, impl) {
+    return snapshot => {
+      const val = snapshot.val()
+      
+      if (!tmpl && !impl) {
+        log(`[LazyFlame] download ${JSON.stringify({[varName]: val}, null, 2)}`)
+        this.setState({[varName]: val})
+        return
+      }
+
+      this.setState(state => {
+        let ptr = state
+        let v = varName
+        
+        const vars = this.eject(tmpl, impl)
+
+        for (const k in vars) {
+          const { type, value } = vars[k]
+          if (type !== 'object') continue
+
+          ptr = ptr[v]
+          v = value
+          
+          if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
+        }
+
+        ptr[v] = val
+        
+        log(`[LazyFlame] download (recursive) ${JSON.stringify({[varName]: state[varName]}, null, 2)}`)
+        return state
+      })
+    }
   }
   
   render() {
