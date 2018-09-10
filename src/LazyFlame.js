@@ -201,10 +201,9 @@ export default class extends Component {
           const { type, value } = vars[k]
           if (type !== 'object') continue
 
+          if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
           ptr = ptr[v]
           v = value
-          
-          if (ptr[v] === undefined || ptr[v] === null) ptr[v] = {}
         }
 
         ptr[v] = val
