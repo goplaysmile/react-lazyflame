@@ -17,6 +17,7 @@ export default class extends Component {
     this.tmpl = {}
     this.call = {}
     this.prop = {}
+    this.toImpl = this.toImpl.bind(this)
     this.download = this.download.bind(this)
     this.inject = this.inject.bind(this)
     this.eject = this.eject.bind(this)
@@ -70,12 +71,18 @@ export default class extends Component {
 
     this.state.set = vars => {
       for (const varName in vars) {
-        const val = vars[varName]
+        let v = vars[varName]
+        let prop = this.prop[varName]
 
-        this.ref[this.prop[varName]].set(val)
-        log(`[LazyFlame] upload {${varName}: ${JSON.stringify(val, null, 2)}}`)
-        
-        this.setState({[varName]: val})
+        if (this.tmpl[prop]) {
+          const { impl, val } = this.toImpl(varName, v)
+          prop = `${prop}@${impl}`
+          v = val
+        }
+
+        log(`[LazyFlame] upload ${JSON.stringify({[varName]: vars[varName]}, null, 2)}`)
+        this.ref[prop].set(v)
+        this.setState(state => ({[varName]: Object.assign(vars[varName], state[varName])}))
       }
     }
 
@@ -113,6 +120,21 @@ export default class extends Component {
       log(`[LazyFlame] off {${prop}}`)
       this.ref[prop].off('value', this.call[prop])
     }
+  }
+
+  toImpl(varName, obj) {
+    const tmpl = this.props[this.prop[varName]]
+    let impl = tmpl
+  
+    let varEx = /\$([^/]+)/
+    let val
+  
+    for (const key in obj) {
+      impl = impl.replace(varEx, key)
+      val = obj[key]
+    }
+  
+    return {impl: impl, val: val}
   }
 
   inject(path) {
