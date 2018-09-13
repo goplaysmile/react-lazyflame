@@ -17,6 +17,7 @@ export default class extends Component {
     this.tmpl = {}
     this.call = {}
     this.prop = {}
+    this.toVars = this.toVars.bind(this)
     this.toImpl = this.toImpl.bind(this)
     this.download = this.download.bind(this)
     this.inject = this.inject.bind(this)
@@ -75,14 +76,21 @@ export default class extends Component {
         let prop = this.prop[varName]
 
         if (this.tmpl[prop]) {
+          log(`[LazyFlame] varName=${varName} v=${JSON.stringify(v, null, 2)}`)
           const { impl, val } = this.toImpl(varName, v)
           prop = `${prop}@${impl}`
           v = val
         }
 
-        log(`[LazyFlame] upload ${JSON.stringify({[varName]: vars[varName]}, null, 2)}`)
+        const val = vars[varName]
+        
         this.ref[prop].set(v)
-        this.setState(state => ({[varName]: Object.assign(vars[varName], state[varName])}))
+        this.setState(state => {
+          log(`[LazyFlame] state.${varName} ${JSON.stringify({[varName]: state[varName]}, null, 2)}\n=>\n${JSON.stringify({[varName]: val}, null, 2)}`)
+          
+          if (typeof val !== 'object') return {[varName]: val}
+          else return {[varName]: Object.assign({}, state[varName], val)}
+        })
       }
     }
 
@@ -125,16 +133,20 @@ export default class extends Component {
   toImpl(varName, obj) {
     const tmpl = this.props[this.prop[varName]]
     let impl = tmpl
-  
+
     let varEx = /\$([^/]+)/
-    let val
-  
-    for (const key in obj) {
-      impl = impl.replace(varEx, key)
-      val = obj[key]
+    let ptr = obj
+
+    for (const v of this.toVars(tmpl)) {
+      const val = this.tmplToVal(v)
+      
+      const key = Object.keys(ptr)[0]
+      impl = impl.replace(varEx, val)
+
+      if (typeof val === 'object') ptr = obj[key]
     }
   
-    return {impl: impl, val: val}
+    return {impl: impl, val: ptr}
   }
 
   inject(path) {
@@ -186,6 +198,16 @@ export default class extends Component {
       obj = obj[child]
     }
     return obj
+  }
+
+  toVars(tmpl) {
+    const tms = tmpl.split('/')
+    let vars = []
+    for (const v of tms) {
+      if (v.indexOf('$') === -1) continue
+      vars.push(v)
+    }
+    return vars
   }
 
   eject(tmpl, impl) {
