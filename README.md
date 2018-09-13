@@ -1,61 +1,109 @@
 # LazyFlame
-A React component that lazily loads realtime database values
 
-#### Example 1:
+### A *super easy* way to use Firebase in a React App
+
+* LazyFlame Just Work️s™️
+
+```jsx
+<LazyFlame age="my/age">
+  {db => <div>{db.age}</div>}
+</LazyFlame>
+```
+
+* LazyFlame can authenticate
 
 ```jsx
 <LazyFlame
-  year-on="some/year"
-  names="born/$year"
+  uid
+  name="name/$uid"
 >
+  {db => <div>{db.uid}'s name is {db.name}</div>}
+</LazyFlame>
+```
+
+* LazyFlame is global
+
+```jsx
+<LazyFlame age="this/is/my/age">
+  <Child />
+</LazyFlame>
+
+...
+
+const Child = () => (
+  <LazyFlame>
+    {db => <div>{db.age}</div>}
+  </LazyFlame>
+)
+```
+
+* LazyFlame can be not-lazy
+
+```jsx
+<LazyFlame time-on="real/time">
+  {db => <div>It is now {db.time}</div>}
+</LazyFlame>
+```
+
+* LazyFlame can write
+
+```jsx
+<LazyFlame sign="my/sign">
   {db => (
-    <div>
-      <div>Born in {db.year}:</div>
-      <ol>
-        {db.names.map(name => (
-          <li>{name}</li>
-        ))}
-      </ol>
-    </div>
+    <button onClick={() => db.set({sign: 'Leo'})}>
+      {db.sign}
+    </button>
   )}
 </LazyFlame>
 ```
 
-The example above downloads 'born/$year' -> **names** once for every 'some/year' -> **year** update.
-
-#### Example component App:
+* LazyFlame spreads
 
 ```jsx
-import React from 'react'
-import LazyFlame from 'react-lazyflame'
-
-const config = { ... }
-
-const External = () => (
-  <LazyFlame>
-    {db => (
-      <div>
-        <div>Born in {db.year}:</div>
-        <ol>
-          {db.names.map((name, i) => <li key={i}>{name}</li>)}
-        </ol>
-        <button onClick={() => db.set({year: db.year+1})}>Add Year</button>
-      </div>
-    )}
-  </LazyFlame>
-)
-
-export default () => (
-  <div className="App">
-    <LazyFlame init={config} debug
-      uid
-      year="some/year"
-      names="born/$year"
-    >
-      <External />
-    </LazyFlame>
-  </div>
-)
+<LazyFlame
+  names="all/names"
+  face="face/$names"
+>
+  {db => <img src={db.face['john-doe']} />}
+</LazyFlame>
 ```
 
-The example above initializes Firebase with **init**, prints console.log messages with **debug**, awaits authentication -> **uid**, and uses React's Context.Provider/Consumer to teleport downloaded values to other components that use **\<LazyFlame\>**. On every button click, **year** -> 'some/year' in the realtime database increases by one. Notice **year** doesn't have the '-on' appended to the prop name; it will only download once but internally keep track of the uploaded/set value which also will retrigger a download from 'born/$year' -> **names** each time.
+* LazyFlame handles layers
+
+```jsx
+<LazyFlame
+  obj="super/deep/object"
+  field="$obj.a.b.c"
+>
+  {db => <div>{db.field}</div>}
+</LazyFlame>
+```
+
+* LazyFlame is complex
+
+```jsx
+<LazyFlame
+  obj-on="an/obj"
+  list="my/list"
+  dict-on="my/dict"
+  objDict="obj/dict"
+  combo-on="a/$list/n/$obj.val/n/$dict/$objDict.val"
+>
+  {db => <div>{db.combo}</div>}
+</LazyFlame>
+```
+
+* And of course, LazyFlame won't leave you in the dark
+
+```jsx
+<LazyFlame
+  debug
+  test="check/console/logs"
+>
+  {db => (
+    <button onClick={() => db.set({test: 'ok!'})}>
+      {db.test}
+    </button>
+  )}
+</LazyFlame>
+```

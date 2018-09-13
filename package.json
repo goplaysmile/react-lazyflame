@@ -1,6 +1,6 @@
 {
   "name": "react-lazyflame",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "💤Lazy 🔥Firebase Realtime ⚛️React Components",
   "main": "src/LazyFlame.js",
   "scripts": {
