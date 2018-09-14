@@ -17,6 +17,8 @@ export default class extends Component {
     this.tmpl = {}
     this.call = {}
     this.prop = {}
+    this.validProps = this.validProps.bind(this)
+    this.optionalProps = this.optionalProps.bind(this)
     this.toVars = this.toVars.bind(this)
     this.toImpl = this.toImpl.bind(this)
     this.download = this.download.bind(this)
@@ -59,7 +61,7 @@ export default class extends Component {
       this.prop[varName] = prop
       this.state[varName] = undefined
 
-      const path = props[prop]
+      const path = this.validProps(prop)
       const isTmpl = isTemplate(path)
 
       if (!isTmpl && typeof path === 'string') {
@@ -130,8 +132,20 @@ export default class extends Component {
     }
   }
 
+  validProps(prop) {
+    const p = this.props[prop]
+    return typeof p === 'string'
+      ? p.replace('?', '')
+      : p
+  }
+
+  optionalProps(prop) {
+    const p = this.props[prop]
+    return typeof p === 'string' && p.indexOf('?') !== -1
+  }
+
   toImpl(varName, obj) {
-    const tmpl = this.props[this.prop[varName]]
+    const tmpl = this.validProps(this.prop[varName])
     let impl = tmpl
 
     let varEx = /\$([^/]+)/
@@ -261,10 +275,12 @@ export default class extends Component {
   render() {
     // templates
     for (const prop in this.tmpl) {
-      const tmpl = this.props[prop]
+      const tmpl = this.validProps(prop)
       const newPaths = this.inject(tmpl)
 
       if (!newPaths) {
+        if (this.optionalProps(prop)) continue
+
         log(`[LazyFlame] failed to inject ${tmpl}; skipping render`)
         return null
       }
@@ -295,7 +311,7 @@ export default class extends Component {
         
         if (this.tmpl[prop][path]) continue
         
-        log(`[LazyFlame] injecting ${this.props[prop]}; ${path}`)
+        log(`[LazyFlame] injecting ${this.validProps(prop)}; ${path}`)
         this.tmpl[prop][path] = true
 
         const [ varName, on ] = prop.split('-')
@@ -313,6 +329,10 @@ export default class extends Component {
     // ready vars
     for (const varName in this.state) {
       if (this.state[varName] !== undefined && this.state[varName] !== null) continue
+      if (this.optionalProps(this.prop[varName])) {
+        log(`[LazyFlame] ${varName} optional; continuing render`)
+        continue
+      }
       
       log(`[LazyFlame] ${varName} not downloaded; skipping render`)
       return null

@@ -57,6 +57,14 @@ const Child = () => (
 </LazyFlame>
 ```
 
+* LazyFlame has optional vars
+
+```jsx
+<LazyFlame ready="val/not/ready?">
+  {db => db.ready ? <div>We are {db.ready}</div> : null}
+</LazyFlame>
+```
+
 * LazyFlame spreads
 
 ```jsx
