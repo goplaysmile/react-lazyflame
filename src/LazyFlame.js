@@ -78,17 +78,19 @@ export default class extends Component {
         let prop = this.prop[varName]
 
         if (this.tmpl[prop]) {
-          log(`[LazyFlame] varName=${varName} v=${JSON.stringify(v, null, 2)}`)
           const { impl, val } = this.toImpl(varName, v)
           prop = `${prop}@${impl}`
           v = val
+          log(`[LazyFlame] varName=${varName} v=${JSON.stringify(v, null, 2)}`)
         }
 
         const val = vars[varName]
         
         this.ref[prop].set(v)
+        log(`[LazyFlame] upload ${prop} ${JSON.stringify(v, null, 2)}`)
+
         this.setState(state => {
-          log(`[LazyFlame] state.${varName} ${JSON.stringify({[varName]: state[varName]}, null, 2)}\n=>\n${JSON.stringify({[varName]: val}, null, 2)}`)
+          log(`[LazyFlame] state.${varName} ${JSON.stringify({[varName]: state[varName]}, null, 2)}\n=> ${JSON.stringify({[varName]: val}, null, 2)}`)
           
           if (typeof val !== 'object') return {[varName]: val}
           else return {[varName]: Object.assign({}, state[varName], val)}
@@ -153,11 +155,14 @@ export default class extends Component {
 
     for (const v of this.toVars(tmpl)) {
       const val = this.tmplToVal(v)
-      
       const key = Object.keys(ptr)[0]
-      impl = impl.replace(varEx, val)
+      const isObj = typeof val === 'object'
+      
+      const impl2 = impl.replace(varEx, isObj ? key : val)
+      log(`[LazyFlame] impl ${JSON.stringify(impl, null, 2)}\n=>\n${JSON.stringify(impl2, null, 2)}`)
+      impl = impl2
 
-      if (typeof val === 'object') ptr = obj[key]
+      if (isObj) ptr = obj[key]
     }
   
     return {impl: impl, val: ptr}
